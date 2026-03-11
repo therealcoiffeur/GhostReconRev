@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <!-- Page metadata and shared visual assets. -->
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Evidence {{ evidence.evidence_id }}</title>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png" />
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png" />
+  <link rel="stylesheet" href="/static/styles.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+</head>
+<body>
+  <!-- Shared header with contextual navigation links. -->
+  <header class="app-header">
+    <div class="app-header-inner">
+      <div class="app-header-left">
+        <div class="brand-wrap">
+          <span class="brand-mark"></span>
+          <div>
+            <p class="brand-title">GhostReconRev</p>
+            <p class="brand-sub">Recon Operations Console</p>
+          </div>
+        </div>
+        <a class="home-link" href="/"><i class="fa-solid fa-house" aria-hidden="true"></i> Runs</a>
+        <a class="home-link" href="/history"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> History</a>
+      </div>
+      <nav class="app-nav">
+        <a href="/jobs/{{ job.job_id }}"><i class="fa-solid fa-briefcase" aria-hidden="true"></i> Job</a>
+        <a href="/jobs/{{ job.job_id }}/evidence"><i class="fa-solid fa-folder-open" aria-hidden="true"></i> Evidences</a>
+        <a href="/jobs/{{ job.job_id }}/report"><i class="fa-solid fa-file-signature" aria-hidden="true"></i> Report</a>
+        <a href="/jobs/{{ job.job_id }}/dast"><i class="fa-solid fa-bug" aria-hidden="true"></i> DAST</a>
+        <button id="theme-toggle" class="theme-toggle" type="button" onclick="toggleTheme()"><i class="fa-solid fa-moon" aria-hidden="true"></i></button>
+      </nav>
+    </div>
+  </header>
+  <main class="container">
+    <!-- Evidence identifier and record details. -->
+    <header class="header-row">
+      <h1><i class="fa-solid fa-file-shield" aria-hidden="true"></i> Evidence {{ evidence.evidence_id }}</h1>
+    </header>
+    <section class="panel">
+      <div class="header-row">
+        <h2><i class="fa-solid fa-download" aria-hidden="true"></i> Actions</h2>
+        {% if download_available %}
+        <a class="btn-secondary btn-pill" href="/jobs/{{ job.job_id }}/evidence/{{ evidence.evidence_id }}/download">
+          <i class="fa-solid fa-file-arrow-down" aria-hidden="true"></i> Download evidence
+        </a>
+        {% endif %}
+      </div>
+      {% if not download_available %}
+      <p class="muted-text">Download unavailable for this evidence.</p>
+      {% endif %}
+    </section>
+
+    <section class="panel">
+      <!-- Immutable evidence attributes and provenance references. -->
+      <h2><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Details</h2>
+      <table>
+        <tbody>
+          <tr><th>Job ID</th><td>{{ evidence.job_id }}</td></tr>
+          <tr><th>Task ID</th><td>{{ evidence.task_id }}</td></tr>
+          <tr><th>Kind</th><td>{{ evidence.kind }}</td></tr>
+          <tr><th>Source</th><td>{{ evidence.source }}</td></tr>
+          <tr><th>Collector Version</th><td>{{ evidence.collector_version }}</td></tr>
+          <tr><th>Content Hash</th><td><code>{{ evidence.content_hash }}</code></td></tr>
+          <tr><th>Blob Ref</th><td><code>{{ evidence.blob_ref }}</code></td></tr>
+          <tr><th>Schema Version</th><td>{{ evidence.schema_version }}</td></tr>
+          <tr><th>Collected At</th><td>{{ evidence.collected_at }}</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="panel">
+      <!-- Task associated with this evidence object. -->
+      <h2><i class="fa-solid fa-list-check" aria-hidden="true"></i> Linked Task</h2>
+      {% if task %}
+      <p><code>{{ task.task_id }}</code> - {{ task.task_type }} ({{ task.status }})</p>
+      {% else %}
+      <p>No linked task record found.</p>
+      {% endif %}
+    </section>
+
+    <section class="panel">
+      <!-- Assertions directly referencing this evidence_id. -->
+      <h2><i class="fa-solid fa-link" aria-hidden="true"></i> Linked Assertions</h2>
+      {% if assertions %}
+      <table>
+        <thead><tr><th>Assertion ID</th><th>Predicate</th><th>Value</th><th>Status</th><th>Created</th></tr></thead>
+        <tbody>
+          {% for a in assertions %}
+          <tr>
+            <td>{{ a.assertion_id }}</td>
+            <td>{{ a.predicate }}</td>
+            <td>{{ a.value }}</td>
+            <td>{{ a.status }}</td>
+            <td>{{ a.created_at }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p>No assertions reference this evidence.</p>
+      {% endif %}
+    </section>
+
+    <section class="panel">
+      <!-- Linked entity inferred from assertion subject first, then blob_ref fallback. -->
+      <h2><i class="fa-solid fa-network-wired" aria-hidden="true"></i> Linked Entity</h2>
+      {% if entity %}
+      <p><code>{{ entity.entity_id }}</code> - {{ entity.entity_type }} - {{ entity.canonical_name }}</p>
+      {% else %}
+      <p>No linked entity resolved from assertions or blob reference.</p>
+      {% endif %}
+    </section>
+
+    <section class="panel">
+      <!-- Raw artifact payload for quick verification and troubleshooting. -->
+      <h2><i class="fa-solid fa-file-code" aria-hidden="true"></i> Raw Evidence</h2>
+      {% if raw_evidence_note %}
+      <p class="muted-text">{{ raw_evidence_note }}</p>
+      {% endif %}
+      {% if raw_evidence %}
+      <pre class="raw-evidence">{{ raw_evidence }}</pre>
+      {% else %}
+      <p>No raw evidence content available for this item.</p>
+      {% endif %}
+    </section>
+  </main>
+  <footer class="app-footer">
+    <span>Evidence detail with provenance links and supporting assertions.</span>
+  </footer>
+  <script>
+    (function () {
+      // Keep a per-browser theme preference across pages.
+      const key = "grr-theme";
+      const root = document.documentElement;
+      const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      const saved = localStorage.getItem(key) || (prefersDark ? "dark" : "light");
+
+      function applyTheme(theme) {
+        root.setAttribute("data-theme", theme);
+        const btn = document.getElementById("theme-toggle");
+        if (btn) {
+          btn.innerHTML = theme === "dark" ? '<i class="fa-solid fa-sun" aria-hidden="true"></i>' : '<i class="fa-solid fa-moon" aria-hidden="true"></i>';
+          btn.title = theme === "dark" ? "Switch to light mode" : "Switch to dark mode";
+          btn.setAttribute("aria-label", btn.title);
+        }
+      }
+
+      window.toggleTheme = function () {
+        const current = root.getAttribute("data-theme") === "dark" ? "dark" : "light";
+        const next = current === "dark" ? "light" : "dark";
+        localStorage.setItem(key, next);
+        applyTheme(next);
+      };
+
+      applyTheme(saved);
+    })();
+  </script>
+</body>
+</html>

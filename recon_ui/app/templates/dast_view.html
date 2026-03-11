@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DAST - {{ job.job_id }}</title>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png" />
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png" />
+  <link rel="stylesheet" href="/static/styles.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="app-header-inner">
+      <div class="app-header-left">
+        <div class="brand-wrap">
+          <span class="brand-mark"></span>
+          <div>
+            <p class="brand-title">GhostReconRev</p>
+            <p class="brand-sub">Recon Operations Console</p>
+          </div>
+        </div>
+        <a class="home-link" href="/"><i class="fa-solid fa-house" aria-hidden="true"></i> Runs</a>
+        <a class="home-link" href="/history"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> History</a>
+      </div>
+      <nav class="app-nav">
+        <a href="/jobs/{{ job.job_id }}/entities"><i class="fa-solid fa-sitemap" aria-hidden="true"></i> Targets</a>
+        <a href="/jobs/{{ job.job_id }}/evidence"><i class="fa-solid fa-folder-open" aria-hidden="true"></i> Evidences</a>
+        <a href="/jobs/{{ job.job_id }}/report"><i class="fa-solid fa-file-signature" aria-hidden="true"></i> Report</a>
+        <button id="theme-toggle" class="theme-toggle" type="button" onclick="toggleTheme()"><i class="fa-solid fa-moon" aria-hidden="true"></i></button>
+      </nav>
+    </div>
+  </header>
+  <main class="container">
+    <header class="header-row">
+      <h1><i class="fa-solid fa-bug" aria-hidden="true"></i> DAST - {{ job.job_id }}</h1>
+    </header>
+
+    <section class="panel report-hero">
+      <p class="muted-text report-intro">Job-level DAST workspace. Launches still start from the port-specific controls in Targets; this page centralizes Acunetix availability and workflow tracking.</p>
+      <div class="report-chip-row">
+        <span class="report-chip"><i class="fa-solid fa-briefcase" aria-hidden="true"></i> Status: <strong>{{ job.status }}</strong></span>
+        <span class="report-chip"><i class="fa-solid fa-bolt" aria-hidden="true"></i> Active workflows: <strong id="active-workflow-count">{{ active_workflow_count }}</strong></span>
+        <span class="report-chip"><i class="fa-solid fa-list-check" aria-hidden="true"></i> Total workflows: <strong id="workflow-count">{{ workflow_count }}</strong></span>
+        <span class="report-chip"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> Completed: <strong id="completed-workflow-count">{{ completed_workflow_count }}</strong></span>
+      </div>
+    </section>
+
+    <section class="panel dast-pane">
+      <div class="dast-pane-header">
+        <div>
+          <h2><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Acunetix</h2>
+          <p class="muted-text">Current custom MCP integration for acunetix.</p>
+        </div>
+        {% if acunetix_entry %}
+        <span class="report-chip"><i class="fa-solid fa-plug" aria-hidden="true"></i> {{ acunetix_entry.tool_count }} tools</span>
+        {% else %}
+        <span class="report-chip"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Unavailable</span>
+        {% endif %}
+      </div>
+
+      {% if acunetix_entry %}
+      <div class="dast-pane-grid">
+        <div class="dast-pane-card">
+          <h3>Import External Scan</h3>
+          <p class="muted-text">Pull vulnerabilities from an Acunetix scan launched outside GhostReconRev and attach them to this job as DAST evidence.</p>
+          <form id="scan-import-form" class="dast-import-form">
+            <label class="dast-import-field" for="scan-id-input">Scan ID</label>
+            <input
+              id="scan-id-input"
+              name="scan_id"
+              type="text"
+              inputmode="text"
+              autocomplete="off"
+              placeholder="555afd05-0ee1-4b90-b93a-b0a0ec9bca96"
+            />
+            <button id="scan-import-button" type="submit" class="btn-pill">
+              <i class="fa-solid fa-download" aria-hidden="true"></i> Import Scan
+            </button>
+          </form>
+          <div id="scan-import-status" class="muted-text dast-import-status"></div>
+        </div>
+      </div>
+      {% else %}
+      <div class="dast-empty">
+        <i class="fa-solid fa-plug-circle-xmark" aria-hidden="true"></i>
+        <p>Acunetix MCP is not currently available for this job.</p>
+      </div>
+      {% endif %}
+
+      {% if dast_warnings %}
+      <div class="notice">
+        {% for warning in dast_warnings %}
+        <div>{{ warning }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </section>
+
+    <section class="panel">
+      <div class="dast-pane-header">
+        <div>
+          <h2><i class="fa-solid fa-wave-square" aria-hidden="true"></i> Acunetix Workflows</h2>
+          <p class="muted-text">Live status for Acunetix scans started from the Targets page.</p>
+        </div>
+      </div>
+      <div id="dast-workflow-list" class="dast-workflow-board"></div>
+    </section>
+  </main>
+  <footer class="app-footer">
+    <span>DAST workspace for Acunetix workflow visibility and report access.</span>
+  </footer>
+  <script>
+    (function () {
+      const key = "grr-theme";
+      const root = document.documentElement;
+      const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      const saved = localStorage.getItem(key) || (prefersDark ? "dark" : "light");
+
+      function applyTheme(theme) {
+        root.setAttribute("data-theme", theme);
+        const btn = document.getElementById("theme-toggle");
+        if (btn) {
+          btn.innerHTML = theme === "dark" ? '<i class="fa-solid fa-sun" aria-hidden="true"></i>' : '<i class="fa-solid fa-moon" aria-hidden="true"></i>';
+          btn.title = theme === "dark" ? "Switch to light mode" : "Switch to dark mode";
+          btn.setAttribute("aria-label", btn.title);
+        }
+      }
+
+      window.toggleTheme = function () {
+        const current = root.getAttribute("data-theme") === "dark" ? "dark" : "light";
+        const next = current === "dark" ? "light" : "dark";
+        localStorage.setItem(key, next);
+        applyTheme(next);
+      };
+
+      applyTheme(saved);
+    })();
+
+    const jobId = {{ job.job_id | tojson }};
+    const csrfToken = {{ csrf_token | tojson }};
+    const initialWorkflows = {{ workflows | tojson }};
+    const workflowsEndpoint = `/jobs/${encodeURIComponent(jobId)}/dast/acunetix/workflows`;
+    const importScanEndpoint = `/jobs/${encodeURIComponent(jobId)}/dast/acunetix/import-scan`;
+    const board = document.getElementById("dast-workflow-list");
+    const scanImportForm = document.getElementById("scan-import-form");
+    const scanImportInput = document.getElementById("scan-id-input");
+    const scanImportButton = document.getElementById("scan-import-button");
+    const scanImportStatus = document.getElementById("scan-import-status");
+
+    function escapeHtml(value) {
+      return String(value || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function renderWorkflowMetrics(workflows) {
+      const activeCount = workflows.filter((workflow) => ["PENDING", "RUNNING"].includes(String(workflow.status || "").toUpperCase())).length;
+      const completedCount = workflows.filter((workflow) => String(workflow.status || "").toUpperCase() === "COMPLETED").length;
+      document.getElementById("workflow-count").textContent = String(workflows.length);
+      document.getElementById("active-workflow-count").textContent = String(activeCount);
+      document.getElementById("completed-workflow-count").textContent = String(completedCount);
+    }
+
+    function renderWorkflowBoard(workflows) {
+      renderWorkflowMetrics(workflows);
+      if (!Array.isArray(workflows) || workflows.length === 0) {
+        board.innerHTML = `
+          <div class="dast-empty">
+            <i class="fa-solid fa-hourglass-start" aria-hidden="true"></i>
+            <p>No Acunetix workflow has been launched for this job yet.</p>
+          </div>
+        `;
+        return;
+      }
+
+      board.innerHTML = workflows.map((workflow) => {
+        const workflowId = escapeHtml(workflow.workflow_id);
+        const targetLabel = escapeHtml(workflow.target_label || workflow.target_address || workflow.target_name || workflow.workflow_id);
+        const status = escapeHtml(String(workflow.status || "UNKNOWN").toUpperCase());
+        const phase = escapeHtml(workflow.phase || "unknown");
+        const scanText = workflow.scan_status ? `${escapeHtml(workflow.scan_status)}${workflow.scan_progress != null ? ` (${escapeHtml(workflow.scan_progress)})%` : ""}` : "n/a";
+        const message = workflow.message ? `<p class="dast-workflow-message">${escapeHtml(workflow.message)}</p>` : "";
+        const reportLink = workflow.report_download_url
+          ? `<a class="btn-secondary btn-pill" href="${escapeHtml(workflow.report_download_url)}"><i class="fa-solid fa-file-arrow-down" aria-hidden="true"></i> Report</a>`
+          : "";
+        const evidenceLink = workflow.task_id
+          ? `<a class="btn-secondary btn-pill" href="/jobs/${encodeURIComponent(jobId)}/evidence?task_id=${encodeURIComponent(workflow.task_id)}"><i class="fa-solid fa-folder-open" aria-hidden="true"></i> Evidences</a>`
+          : "";
+        const stepItems = Array.isArray(workflow.steps) && workflow.steps.length > 0
+          ? workflow.steps.slice(-5).map((step) => `<li><strong>${escapeHtml(step.phase || "")}</strong> ${escapeHtml(step.message || "")}</li>`).join("")
+          : "<li>No workflow steps yet.</li>";
+        const vulnItems = Array.isArray(workflow.vulnerabilities_preview) && workflow.vulnerabilities_preview.length > 0
+          ? workflow.vulnerabilities_preview.map((vuln) => `<li>${escapeHtml(vuln.name || vuln.vuln_id || "vulnerability")}</li>`).join("")
+          : "<li>No vulnerability preview available.</li>";
+
+        return `
+          <article class="dast-workflow-card">
+            <div class="dast-pane-header">
+              <div>
+                <h3>${targetLabel}</h3>
+                <p class="muted-text"><code>${workflowId}</code></p>
+              </div>
+              <span class="report-chip">${status}</span>
+            </div>
+            <div class="dast-workflow-summary">
+              <span class="report-chip">phase: ${phase}</span>
+              <span class="report-chip">scan: ${scanText}</span>
+              <span class="report-chip">vulns: ${escapeHtml(workflow.vulnerability_count != null ? workflow.vulnerability_count : 0)}</span>
+            </div>
+            ${message}
+            <div class="inline-actions">
+              ${evidenceLink}
+              ${reportLink}
+            </div>
+            <div class="dast-pane-grid">
+              <div class="dast-pane-card">
+                <h3>Recent Steps</h3>
+                <ul class="dast-step-list">${stepItems}</ul>
+              </div>
+              <div class="dast-pane-card">
+                <h3>Vulnerability Preview</h3>
+                <ul class="dast-vulnerability-list">${vulnItems}</ul>
+              </div>
+            </div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    async function refreshWorkflows() {
+      try {
+        const response = await fetch(workflowsEndpoint, {
+          headers: { Accept: "application/json" },
+          credentials: "same-origin",
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to load Acunetix workflows (${response.status})`);
+        }
+        const payload = await response.json();
+        renderWorkflowBoard(Array.isArray(payload.workflows) ? payload.workflows : []);
+      } catch (error) {
+        board.innerHTML = `
+          <div class="dast-empty">
+            <i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>
+            <p>${escapeHtml(error instanceof Error ? error.message : "Failed to load Acunetix workflows.")}</p>
+          </div>
+        `;
+      }
+    }
+
+    function setScanImportStatus(message, tone = "neutral") {
+      if (!scanImportStatus) {
+        return;
+      }
+      scanImportStatus.className = `dast-import-status is-${tone}`;
+      scanImportStatus.innerHTML = message;
+    }
+
+    if (scanImportForm && scanImportInput && scanImportButton) {
+      scanImportForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const scanId = String(scanImportInput.value || "").trim();
+        if (!scanId) {
+          setScanImportStatus("Enter one Acunetix scan ID to import.", "error");
+          scanImportInput.focus();
+          return;
+        }
+
+        scanImportButton.disabled = true;
+        setScanImportStatus("Importing scan data from Acunetix...", "pending");
+        try {
+          const response = await fetch(importScanEndpoint, {
+            method: "POST",
+            headers: {
+              Accept: "application/json",
+              "Content-Type": "application/json",
+              "X-CSRF-Token": csrfToken,
+            },
+            credentials: "same-origin",
+            body: JSON.stringify({ scan_id: scanId }),
+          });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            throw new Error(typeof payload.detail === "string" ? payload.detail : `Import failed (${response.status})`);
+          }
+
+          const evidenceLink = payload.evidence_url
+            ? ` <a href="${escapeHtml(payload.evidence_url)}">Open evidence</a>.`
+            : payload.task_evidence_url
+            ? ` <a href="${escapeHtml(payload.task_evidence_url)}">Open task evidences</a>.`
+            : "";
+          setScanImportStatus(`${escapeHtml(payload.message || "Scan imported.")}${evidenceLink}`, "success");
+          scanImportForm.reset();
+        } catch (error) {
+          setScanImportStatus(escapeHtml(error instanceof Error ? error.message : "Failed to import scan."), "error");
+        } finally {
+          scanImportButton.disabled = false;
+        }
+      });
+    }
+
+    renderWorkflowBoard(Array.isArray(initialWorkflows) ? initialWorkflows : []);
+    window.setInterval(refreshWorkflows, 5000);
+  </script>
+</body>
+</html>

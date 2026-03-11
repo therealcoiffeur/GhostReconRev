@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <!-- Basic metadata and stylesheet import. -->
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Job {{ job.job_id }}</title>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png" />
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png" />
+  <link rel="stylesheet" href="/static/styles.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="app-header-inner">
+      <div class="app-header-left">
+        <div class="brand-wrap">
+          <span class="brand-mark"></span>
+          <div>
+            <p class="brand-title">GhostReconRev</p>
+            <p class="brand-sub">Recon Operations Console</p>
+          </div>
+        </div>
+        <a class="home-link" href="/"><i class="fa-solid fa-house" aria-hidden="true"></i> Runs</a>
+        <a class="home-link" href="/history"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> History</a>
+      </div>
+      <nav class="app-nav">
+        <a href="/jobs/{{ job.job_id }}/entities"><i class="fa-solid fa-sitemap" aria-hidden="true"></i> Targets</a>
+        <a href="/jobs/{{ job.job_id }}/evidence"><i class="fa-solid fa-folder-open" aria-hidden="true"></i> Evidences</a>
+        <a href="/jobs/{{ job.job_id }}/report"><i class="fa-solid fa-file-signature" aria-hidden="true"></i> Report</a>
+        <a href="/jobs/{{ job.job_id }}/dast"><i class="fa-solid fa-bug" aria-hidden="true"></i> DAST</a>
+        <button id="theme-toggle" class="theme-toggle" type="button" onclick="toggleTheme()"><i class="fa-solid fa-moon" aria-hidden="true"></i></button>
+      </nav>
+    </div>
+  </header>
+  <main class="container">
+    <!-- Header with job id and quick links. -->
+    <header class="header-row">
+      <h1><i class="fa-solid fa-briefcase" aria-hidden="true"></i> Job {{ job.job_id }}</h1>
+    </header>
+
+    <!-- Live metric cards updated from snapshot endpoint. -->
+    <section class="metrics job-metrics">
+      <div class="metric"><div class="metric-head"><i class="fa-solid fa-heartbeat metric-icon" aria-hidden="true"></i><span>Status</span></div><strong id="job-status">{{ job.status }}</strong></div>
+      <div class="metric"><div class="metric-head"><i class="fa-solid fa-diagram-project metric-icon" aria-hidden="true"></i><span>Current stage</span></div><strong id="job-stage">{{ job.current_stage }}</strong></div>
+      <div class="metric"><div class="metric-head"><i class="fa-solid fa-network-wired metric-icon" aria-hidden="true"></i><span>Entities</span></div><strong id="entities-total">{{ job.entities_total }}</strong></div>
+      <div class="metric"><div class="metric-head"><i class="fa-solid fa-file-shield metric-icon" aria-hidden="true"></i><span>Evidence</span></div><strong id="evidence-total">{{ job.evidence_total }}</strong></div>
+      <div class="metric"><div class="metric-head"><i class="fa-solid fa-link metric-icon" aria-hidden="true"></i><span>Assertions</span></div><strong id="assertions-total">{{ job.assertions_total }}</strong></div>
+      <div class="metric"><div class="metric-head"><i class="fa-solid fa-ban metric-icon" aria-hidden="true"></i><span>Policy denials</span></div><strong id="policy-denials">{{ job.policy_denials }}</strong></div>
+      <div class="metric"><div class="metric-head"><i class="fa-solid fa-shield-halved metric-icon" aria-hidden="true"></i><span>Out-of-scope blocked</span></div><strong id="out-of-scope">{{ job.out_of_scope_blocked }}</strong></div>
+    </section>
+
+    <div class="job-top-cards">
+      {% if job.current_stage == "DONE" or job.status == "COMPLETED" or job.status == "FAILED" %}
+      <section class="panel">
+        <h2><i class="fa-solid fa-file-signature" aria-hidden="true"></i> Report</h2>
+        <p class="muted-text">Generate a report draft from current job telemetry, targets, and evidence summary.</p>
+        <div class="report-toolbar">
+          <form method="post" action="/jobs/{{ job.job_id }}/report/generate">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+            <button class="btn-pill" type="submit"><i class="fa-solid fa-file-circle-plus" aria-hidden="true"></i> Generate Report</button>
+          </form>
+          {% if report_exists %}
+          <a class="btn-secondary btn-pill" href="/jobs/{{ job.job_id }}/report"><i class="fa-solid fa-eye" aria-hidden="true"></i> View Report</a>
+          {% endif %}
+        </div>
+      </section>
+      {% endif %}
+
+      <section class="panel">
+        <h2><i class="fa-solid fa-box-archive" aria-hidden="true"></i> Evidence Archive</h2>
+        <p class="muted-text">Download all evidence records for this job with available local artifact files in a single <code>.tar.gz</code> bundle.</p>
+        <div class="report-toolbar">
+          <a class="btn-secondary btn-pill" href="/jobs/{{ job.job_id }}/evidence/archive.tar.gz">
+            <i class="fa-solid fa-file-zipper" aria-hidden="true"></i> Download All Evidences (.tar.gz)
+          </a>
+        </div>
+      </section>
+    </div>
+
+    <!-- Stage progression table. -->
+    <section class="panel">
+      <h2><i class="fa-solid fa-layer-group" aria-hidden="true"></i> Stages</h2>
+      <table>
+        <thead><tr><th>Name</th><th>Status</th><th>Tier</th><th>Started</th><th>Ended</th></tr></thead>
+        <tbody id="stage-table-body">
+        {% for s in stages %}
+        <tr><td>{{ s.name }}</td><td>{{ s.status }}</td><td>{{ s.tier }}</td><td>{{ s.started_at }}</td><td>{{ s.ended_at }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Task-level execution view. -->
+    <section class="panel">
+      <h2><i class="fa-solid fa-list-check" aria-hidden="true"></i> Tasks</h2>
+      <table>
+        <thead><tr><th>ID</th><th>Type</th><th>Status</th><th>Tier</th><th>Planner</th><th>Created</th></tr></thead>
+        <tbody id="task-table-body">
+        {% for t in tasks %}
+        <tr><td>{{ t.task_id }}</td><td>{{ t.task_type }}</td><td>{{ t.status }}</td><td>{{ t.tier }}</td><td>{{ t.planner_source }}</td><td>{{ t.created_at }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </section>
+
+    <section id="blocked-section" class="panel" {% if job.out_of_scope_blocked == 0 and blocked_items|length == 0 %}hidden{% endif %}>
+      <h2><i class="fa-solid fa-octagon-xmark" aria-hidden="true"></i> Out-of-scope Blocked</h2>
+      <p>Enumerates hostnames rejected by the deterministic scope gate.</p>
+      <p id="blocked-note" class="muted-text">
+        {% if not blocked_details_available and job.out_of_scope_blocked > 0 %}
+        This run has a blocked counter but no itemized records (likely created before blocked-item tracking was added).
+        {% endif %}
+      </p>
+      <table>
+        <thead><tr><th>Hostname</th><th>Reason</th><th>Source</th><th>Task</th><th>When</th></tr></thead>
+        <tbody id="blocked-table-body">
+          {% for b in blocked_items %}
+          <tr>
+            <td><code>{{ b.hostname }}</code></td>
+            <td>{{ b.reason }}</td>
+            <td>{{ b.source }}</td>
+            <td>{{ b.task_id }}</td>
+            <td>{{ b.created_at }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Reverse-chronological event timeline. -->
+    <section class="panel">
+      <h2><i class="fa-solid fa-timeline" aria-hidden="true"></i> Event timeline</h2>
+      <ul id="timeline">
+        {% for e in events %}
+        <li class="timeline-item {% if e.severity == 'ERROR' %}timeline-fail{% elif 'running' in e.message.lower() %}timeline-run{% elif 'succeeded' in e.message.lower() or 'completed' in e.message.lower() %}timeline-success{% else %}timeline-neutral{% endif %}"><code>{{ e.timestamp }}</code> <strong>[{{ e.severity }}]</strong> {{ e.event_type }} - {{ e.message }}</li>
+        {% endfor %}
+      </ul>
+    </section>
+  </main>
+  <footer class="app-footer">
+    <span>Live operations timeline for job {{ job.job_id }}.</span>
+  </footer>
+
+  <script>
+    (function () {
+      const key = "grr-theme";
+      const root = document.documentElement;
+      const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      const saved = localStorage.getItem(key) || (prefersDark ? "dark" : "light");
+
+      function applyTheme(theme) {
+        root.setAttribute("data-theme", theme);
+        const btn = document.getElementById("theme-toggle");
+        if (btn) {
+          btn.innerHTML = theme === "dark" ? '<i class="fa-solid fa-sun" aria-hidden="true"></i>' : '<i class="fa-solid fa-moon" aria-hidden="true"></i>';
+          btn.title = theme === "dark" ? "Switch to light mode" : "Switch to dark mode";
+          btn.setAttribute("aria-label", btn.title);
+        }
+      }
+
+      window.toggleTheme = function () {
+        const current = root.getAttribute("data-theme") === "dark" ? "dark" : "light";
+        const next = current === "dark" ? "light" : "dark";
+        localStorage.setItem(key, next);
+        applyTheme(next);
+      };
+
+      applyTheme(saved);
+    })();
+
+    const jobId = {{ job.job_id | tojson }};
+    const safeJobPath = encodeURIComponent(jobId);
+    const stream = new EventSource(`/api/jobs/${safeJobPath}/events`);
+    function classifyTimelineEvent(eventObj) {
+      const severity = String(eventObj.severity || "").toUpperCase();
+      const text = `${eventObj.event_type || ""} ${eventObj.message || ""}`.toLowerCase();
+      if (severity === "ERROR" || text.includes("fail")) {
+        return "timeline-fail";
+      }
+      if (text.includes("running")) {
+        return "timeline-run";
+      }
+      if (text.includes("succeed") || text.includes("completed")) {
+        return "timeline-success";
+      }
+      return "timeline-neutral";
+    }
+
+    function eventTimestampMs(eventObj) {
+      const parsed = Date.parse(String(eventObj.timestamp || ""));
+      return Number.isNaN(parsed) ? 0 : parsed;
+    }
+
+    function appendCell(row, value, asCode = false) {
+      const td = document.createElement("td");
+      if (asCode) {
+        const code = document.createElement("code");
+        code.textContent = String(value ?? "");
+        td.appendChild(code);
+      } else {
+        td.textContent = String(value ?? "");
+      }
+      row.appendChild(td);
+    }
+
+    function renderStageRows(stages) {
+      const stageBody = document.getElementById("stage-table-body");
+      stageBody.textContent = "";
+      for (const stage of stages) {
+        const row = document.createElement("tr");
+        appendCell(row, stage.name);
+        appendCell(row, stage.status);
+        appendCell(row, stage.tier);
+        appendCell(row, stage.started_at);
+        appendCell(row, stage.ended_at || "");
+        stageBody.appendChild(row);
+      }
+    }
+
+    function renderTaskRows(tasks) {
+      const taskBody = document.getElementById("task-table-body");
+      taskBody.textContent = "";
+      for (const task of tasks) {
+        const row = document.createElement("tr");
+        appendCell(row, task.task_id);
+        appendCell(row, task.task_type);
+        appendCell(row, task.status);
+        appendCell(row, task.tier);
+        appendCell(row, task.planner_source);
+        appendCell(row, task.created_at);
+        taskBody.appendChild(row);
+      }
+    }
+
+    function renderBlockedRows(items) {
+      const blockedBody = document.getElementById("blocked-table-body");
+      blockedBody.textContent = "";
+      for (const item of items) {
+        const row = document.createElement("tr");
+        appendCell(row, item.hostname, true);
+        appendCell(row, item.reason);
+        appendCell(row, item.source);
+        appendCell(row, item.task_id);
+        appendCell(row, item.created_at);
+        blockedBody.appendChild(row);
+      }
+    }
+
+    function renderTimelineRows(events) {
+      const timeline = document.getElementById("timeline");
+      timeline.textContent = "";
+      const ordered = [...events].sort((a, b) => eventTimestampMs(b) - eventTimestampMs(a));
+      for (const e of ordered) {
+        const li = document.createElement("li");
+        li.className = `timeline-item ${classifyTimelineEvent(e)}`;
+        const ts = document.createElement("code");
+        ts.textContent = String(e.timestamp || "");
+        li.appendChild(ts);
+
+        li.appendChild(document.createTextNode(" "));
+        const sev = document.createElement("strong");
+        sev.textContent = `[${String(e.severity || "")}]`;
+        li.appendChild(sev);
+
+        li.appendChild(document.createTextNode(` ${String(e.event_type || "")} - ${String(e.message || "")}`));
+        timeline.appendChild(li);
+      }
+    }
+
+    async function refreshSnapshot() {
+      const resp = await fetch(`/api/jobs/${safeJobPath}/snapshot`);
+      if (!resp.ok) {
+        return;
+      }
+      const snapshot = await resp.json();
+
+      document.getElementById("job-status").textContent = snapshot.job.status;
+      document.getElementById("job-stage").textContent = snapshot.job.current_stage;
+      document.getElementById("entities-total").textContent = snapshot.job.entities_total;
+      document.getElementById("evidence-total").textContent = snapshot.job.evidence_total;
+      document.getElementById("assertions-total").textContent = snapshot.job.assertions_total;
+      document.getElementById("policy-denials").textContent = snapshot.job.policy_denials;
+      document.getElementById("out-of-scope").textContent = snapshot.job.out_of_scope_blocked;
+
+      renderStageRows(snapshot.stages);
+      renderTaskRows(snapshot.tasks);
+      renderTimelineRows(snapshot.events);
+
+      renderBlockedRows(snapshot.blocked_items);
+      const blockedSection = document.getElementById("blocked-section");
+      const hasBlocked = snapshot.job.out_of_scope_blocked > 0 || snapshot.blocked_items.length > 0;
+      blockedSection.hidden = !hasBlocked;
+      const blockedNote = document.getElementById("blocked-note");
+      if (snapshot.job.out_of_scope_blocked > 0 && snapshot.blocked_items.length === 0) {
+        blockedNote.textContent = "This run has a blocked counter but no itemized records (likely created before blocked-item tracking was added).";
+      } else {
+        blockedNote.textContent = "";
+      }
+    }
+
+    stream.onmessage = async () => {
+      await refreshSnapshot();
+    };
+
+    stream.onerror = () => {
+      // Keep periodic refresh alive even if SSE reconnects.
+    };
+
+    setInterval(refreshSnapshot, 4000);
+    refreshSnapshot();
+  </script>
+</body>
+</html>

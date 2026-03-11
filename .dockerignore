@@ -1,0 +1,31 @@
+# Exclude VCS metadata from the container build context.
+.git
+.gitignore
+.DS_Store
+# Exclude Python caches and local virtual environments.
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+# Exclude local build outputs.
+dist/
+build/
+*.egg-info/
+htmlcov/
+# Exclude local secrets while keeping the example config available.
+.env
+.env.*
+!.env.example
+# Exclude runtime state and local databases from the image context.
+artifacts/
+data/
+recon_ui.db
+*.db
+*.sqlite
+*.sqlite3

@@ -1,0 +1,1022 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <!-- Metadata and shared style/icon assets. -->
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Entities - {{ job.job_id }}</title>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png" />
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png" />
+  <link rel="stylesheet" href="/static/styles.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+</head>
+<body>
+  <!-- Shared header with context-aware navigation. -->
+  <header class="app-header">
+    <div class="app-header-inner">
+      <div class="app-header-left">
+        <div class="brand-wrap">
+          <span class="brand-mark"></span>
+          <div>
+            <p class="brand-title">GhostReconRev</p>
+            <p class="brand-sub">Recon Operations Console</p>
+          </div>
+        </div>
+        <a class="home-link" href="/"><i class="fa-solid fa-house" aria-hidden="true"></i> Runs</a>
+        <a class="home-link" href="/history"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> History</a>
+      </div>
+      <nav class="app-nav">
+        <a href="/jobs/{{ job.job_id }}"><i class="fa-solid fa-briefcase" aria-hidden="true"></i> Job</a>
+        <a href="/jobs/{{ job.job_id }}/evidence"><i class="fa-solid fa-folder-open" aria-hidden="true"></i> Evidences</a>
+        <a href="/jobs/{{ job.job_id }}/report"><i class="fa-solid fa-file-signature" aria-hidden="true"></i> Report</a>
+        <a href="/jobs/{{ job.job_id }}/dast"><i class="fa-solid fa-bug" aria-hidden="true"></i> DAST</a>
+        <button id="theme-toggle" class="theme-toggle" type="button" onclick="toggleTheme()"><i class="fa-solid fa-moon" aria-hidden="true"></i></button>
+      </nav>
+    </div>
+  </header>
+  <main class="container">
+    <!-- Job-scoped target inventory summary. -->
+    <header class="header-row">
+      <h1><i class="fa-solid fa-sitemap" aria-hidden="true"></i> Identified targets - {{ job.job_id }}</h1>
+    </header>
+
+    <section class="metrics entity-metrics">
+      <div class="metric">
+        <div class="metric-head"><i class="fa-solid fa-globe metric-icon" aria-hidden="true"></i><span>Domains</span></div>
+        <strong>{{ domain_count }}</strong>
+      </div>
+      <div class="metric">
+        <div class="metric-head"><i class="fa-solid fa-diagram-project metric-icon" aria-hidden="true"></i><span>Subdomains</span></div>
+        <strong>{{ subdomain_count }}</strong>
+      </div>
+    </section>
+
+    <section class="panel">
+      <!-- Full export of in-scope discovered names (no truncation). -->
+      <h2><i class="fa-solid fa-download" aria-hidden="true"></i> Export</h2>
+      <form method="get" action="/jobs/{{ job.job_id }}/entities.txt">
+        <button type="submit"><i class="fa-solid fa-file-arrow-down" aria-hidden="true"></i> Download full list as TXT</button>
+      </form>
+    </section>
+
+    <section class="panel">
+      <!-- Tree rendering mount for domains/subdomains with client-side status filtering. -->
+      <div class="entity-tree-head">
+        <div>
+          <h2><i class="fa-solid fa-network-wired" aria-hidden="true"></i> Entities</h2>
+          <p class="muted-text">Filter the tree by resolution state without leaving this page.</p>
+        </div>
+        <div class="entity-filter-bar" role="toolbar" aria-label="Entity resolution filter">
+          <button type="button" class="entity-filter-btn is-active" data-filter="all">
+            <i class="fa-solid fa-layer-group" aria-hidden="true"></i><span>All</span>
+          </button>
+          <button type="button" class="entity-filter-btn" data-filter="resolved">
+            <i class="fa-solid fa-circle-check" aria-hidden="true"></i><span>Resolved</span><span class="entity-filter-count" data-count-for="resolved">0</span>
+          </button>
+          <button type="button" class="entity-filter-btn" data-filter="unresolved">
+            <i class="fa-solid fa-circle-xmark" aria-hidden="true"></i><span>Unresolved</span><span class="entity-filter-count" data-count-for="unresolved">0</span>
+          </button>
+        </div>
+      </div>
+      <div id="entity-tree" class="tree-view"></div>
+    </section>
+
+  </main>
+  <div id="ports-modal" class="ports-modal" hidden>
+    <div class="ports-modal-card" role="dialog" aria-modal="true" aria-labelledby="ports-modal-title">
+      <div class="ports-modal-head">
+        <h2 id="ports-modal-title"><i class="fa-solid fa-plug-circle-bolt" aria-hidden="true"></i> Open Ports</h2>
+        <button id="ports-modal-close" class="ports-modal-close" type="button" aria-label="Close open ports dialog">
+          <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+        </button>
+      </div>
+      <p id="ports-modal-target" class="ports-modal-target"></p>
+      <div id="ports-modal-summary" class="ports-modal-summary"></div>
+      <div id="ports-modal-list" class="ports-modal-list"></div>
+      <div id="ports-modal-evidence-wrap" class="ports-modal-evidence-wrap"></div>
+    </div>
+  </div>
+  <div id="dast-modal" class="ports-modal" hidden>
+    <div class="ports-modal-card" role="dialog" aria-modal="true" aria-labelledby="dast-modal-title">
+      <div class="ports-modal-head">
+        <h2 id="dast-modal-title"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Available DAST</h2>
+        <button id="dast-modal-close" class="ports-modal-close" type="button" aria-label="Close available DAST dialog">
+          <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+        </button>
+      </div>
+      <p id="dast-modal-target" class="ports-modal-target"></p>
+      <div id="dast-modal-summary" class="ports-modal-summary"></div>
+      <div id="dast-modal-list" class="dast-tool-list"></div>
+    </div>
+  </div>
+  <footer class="app-footer">
+    <span>Target map for job {{ job.job_id }} (domain/subdomain hierarchy).</span>
+  </footer>
+
+  <script>
+    (function () {
+      // Reuse the same light/dark behavior as other pages.
+      const key = "grr-theme";
+      const root = document.documentElement;
+      const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      const saved = localStorage.getItem(key) || (prefersDark ? "dark" : "light");
+
+      function applyTheme(theme) {
+        root.setAttribute("data-theme", theme);
+        const btn = document.getElementById("theme-toggle");
+        if (btn) {
+          btn.innerHTML = theme === "dark" ? '<i class="fa-solid fa-sun" aria-hidden="true"></i>' : '<i class="fa-solid fa-moon" aria-hidden="true"></i>';
+          btn.title = theme === "dark" ? "Switch to light mode" : "Switch to dark mode";
+          btn.setAttribute("aria-label", btn.title);
+        }
+      }
+
+      window.toggleTheme = function () {
+        const current = root.getAttribute("data-theme") === "dark" ? "dark" : "light";
+        const next = current === "dark" ? "light" : "dark";
+        localStorage.setItem(key, next);
+        applyTheme(next);
+      };
+
+      applyTheme(saved);
+    })();
+
+    // Server-provided entity snapshot used for client-side tree rendering.
+    const entityJobId = {{ job.job_id | tojson }};
+    const csrfToken = {{ csrf_token | tojson }};
+    const entityRecords = {{ entity_tree_payload | tojson }};
+    const dastToolsEndpoint = `/jobs/${encodeURIComponent(entityJobId)}/dast/tools`;
+    const acunetixWorkflowEndpoint = `/jobs/${encodeURIComponent(entityJobId)}/dast/acunetix/workflows`;
+    const acunetixWorkflowStateByTarget = new Map();
+    const acunetixWorkflowPollers = new Map();
+    const commonHttpsPorts = new Set([443, 8443, 9443, 10443]);
+    let currentDastTarget = null;
+    let currentDastPayload = null;
+
+    // Build a reversed-label tree so each domain branch is grouped naturally.
+    function buildTree(records) {
+      const root = {
+        children: new Map(),
+        full: "",
+        resolutionStatus: "UNRESOLVED",
+        resolvedEvidenceId: "",
+        gauEvidenceId: "",
+        gauUrlCount: 0,
+        naabuEvidenceId: "",
+        naabuPortCount: 0,
+        naabuOpenPorts: [],
+        httpxEvidenceByPort: {},
+        nervaEvidenceByPort: {},
+        scanTargetsByPort: {},
+        isIdentifiedTarget: false
+      };
+
+      for (const rec of records) {
+        const name = String(rec.name || "").trim().toLowerCase();
+        if (!name || !name.includes(".")) {
+          continue;
+        }
+        const resolutionStatus = String(rec.resolution_status || "UNRESOLVED").toUpperCase();
+        const resolvedEvidenceId = String(rec.resolved_evidence_id || "");
+        const gauEvidenceId = String(rec.gau_evidence_id || "");
+        const gauUrlCountRaw = Number(rec.gau_url_count || 0);
+        const gauUrlCount = Number.isFinite(gauUrlCountRaw) ? Math.max(0, Math.trunc(gauUrlCountRaw)) : 0;
+        const naabuEvidenceId = String(rec.naabu_evidence_id || "");
+        const naabuPortCountRaw = Number(rec.naabu_port_count || 0);
+        const naabuPortCount = Number.isFinite(naabuPortCountRaw) ? Math.max(0, Math.trunc(naabuPortCountRaw)) : 0;
+        const naabuOpenPorts = Array.isArray(rec.naabu_open_ports)
+          ? rec.naabu_open_ports
+              .map((value) => Number(value))
+              .filter((value) => Number.isInteger(value) && value >= 1 && value <= 65535)
+              .sort((a, b) => a - b)
+          : [];
+        const httpxEvidenceByPort = {};
+        if (rec.httpx_evidence_by_port && typeof rec.httpx_evidence_by_port === "object") {
+          for (const [rawPort, rawEvidenceId] of Object.entries(rec.httpx_evidence_by_port)) {
+            const port = Number(rawPort);
+            const evidenceId = String(rawEvidenceId || "").trim();
+            if (Number.isInteger(port) && port >= 1 && port <= 65535 && evidenceId) {
+              httpxEvidenceByPort[String(port)] = evidenceId;
+            }
+          }
+        }
+        const nervaEvidenceByPort = {};
+        if (rec.nerva_evidence_by_port && typeof rec.nerva_evidence_by_port === "object") {
+          for (const [rawPort, rawEvidenceId] of Object.entries(rec.nerva_evidence_by_port)) {
+            const port = Number(rawPort);
+            const evidenceId = String(rawEvidenceId || "").trim();
+            if (Number.isInteger(port) && port >= 1 && port <= 65535 && evidenceId) {
+              nervaEvidenceByPort[String(port)] = evidenceId;
+            }
+          }
+        }
+        const scanTargetsByPort = {};
+        if (rec.scan_targets_by_port && typeof rec.scan_targets_by_port === "object") {
+          for (const [rawPort, rawTargetUrl] of Object.entries(rec.scan_targets_by_port)) {
+            const port = Number(rawPort);
+            const targetUrl = String(rawTargetUrl || "").trim();
+            if (Number.isInteger(port) && port >= 1 && port <= 65535 && targetUrl) {
+              scanTargetsByPort[String(port)] = targetUrl;
+            }
+          }
+        }
+        const isIdentifiedTarget = Boolean(rec.is_identified_target);
+        const labels = name.split(".").filter(Boolean).reverse();
+        let cursor = root;
+        let currentFull = "";
+        for (let i = 0; i < labels.length; i++) {
+          const label = labels[i];
+          const suffix = labels.slice(0, i + 1).reverse().join(".");
+          currentFull = suffix;
+          if (!cursor.children.has(label)) {
+            cursor.children.set(label, {
+              children: new Map(),
+              full: currentFull,
+              resolutionStatus: "UNRESOLVED",
+              resolvedEvidenceId: "",
+              gauEvidenceId: "",
+              gauUrlCount: 0,
+              naabuEvidenceId: "",
+              naabuPortCount: 0,
+              naabuOpenPorts: [],
+              httpxEvidenceByPort: {},
+              nervaEvidenceByPort: {},
+              scanTargetsByPort: {},
+              isIdentifiedTarget: false
+            });
+          }
+          cursor = cursor.children.get(label);
+        }
+        cursor.resolutionStatus = resolutionStatus;
+        if (resolvedEvidenceId) {
+          cursor.resolvedEvidenceId = resolvedEvidenceId;
+        }
+        if (gauEvidenceId) {
+          cursor.gauEvidenceId = gauEvidenceId;
+        }
+        cursor.gauUrlCount = gauUrlCount;
+        if (naabuEvidenceId) {
+          cursor.naabuEvidenceId = naabuEvidenceId;
+        }
+        cursor.naabuPortCount = naabuPortCount;
+        cursor.naabuOpenPorts = naabuOpenPorts;
+        cursor.httpxEvidenceByPort = httpxEvidenceByPort;
+        cursor.nervaEvidenceByPort = nervaEvidenceByPort;
+        cursor.scanTargetsByPort = scanTargetsByPort;
+        cursor.isIdentifiedTarget = isIdentifiedTarget;
+      }
+
+      return root;
+    }
+
+    function buildDastTarget(targetName, options = {}) {
+      const rawUrl = String(options.url || "").trim();
+      const port = Number(options.port);
+      const scheme = String(options.scheme || "").trim().toLowerCase();
+      const fallbackScheme = commonHttpsPorts.has(port) ? "https" : "http";
+      const normalizedScheme = scheme === "http" || scheme === "https" ? scheme : fallbackScheme;
+      const normalizedUrl = rawUrl || (Number.isInteger(port) && port >= 1 && port <= 65535
+        ? `${normalizedScheme}://${targetName}:${port}`
+        : `https://${targetName}`);
+      return {
+        key: normalizedUrl,
+        name: targetName,
+        url: normalizedUrl,
+        label: String(options.label || normalizedUrl).trim() || normalizedUrl
+      };
+    }
+
+    function getPortDastTarget(targetName, port, scanTargetsByPort) {
+      const targetUrl = scanTargetsByPort ? String(scanTargetsByPort[String(port)] || "").trim() : "";
+      return buildDastTarget(targetName, { url: targetUrl, port });
+    }
+
+    // Render one tree node and recurse into child labels.
+    function renderNode(container, label, node) {
+      const li = document.createElement("li");
+      const row = document.createElement("div");
+      row.className = "tree-node";
+
+      const main = document.createElement("span");
+      main.className = "tree-main";
+
+      const title = document.createElement("span");
+      title.className = "tree-label";
+      title.textContent = label;
+      main.appendChild(title);
+
+      const fqdn = document.createElement("code");
+      fqdn.className = "tree-fqdn";
+      fqdn.textContent = node.full;
+      main.appendChild(fqdn);
+
+      row.appendChild(main);
+
+      let state = document.createElement("span");
+      if (node.resolutionStatus === "RESOLVED") {
+        if (node.resolvedEvidenceId) {
+          state = document.createElement("a");
+          state.className = "tree-state tree-state-resolved tree-state-link";
+          state.href = `/jobs/${encodeURIComponent(entityJobId)}/evidence/${encodeURIComponent(node.resolvedEvidenceId)}`;
+          state.textContent = "● resolved";
+          state.title = "Open related dnsx evidence";
+        } else {
+          state.className = "tree-state tree-state-resolved";
+          state.textContent = "● resolved";
+        }
+      } else if (node.resolutionStatus === "NEEDCHECK") {
+        state.className = "tree-state tree-state-needcheck";
+        state.textContent = "● needcheck";
+      } else if (node.resolutionStatus === "UNRESOLVED") {
+        state.className = "tree-state tree-state-unresolved";
+        state.textContent = "● unresolved";
+      } else {
+        state.className = "tree-state tree-state-unresolved";
+        state.textContent = "● unresolved";
+      }
+      const meta = document.createElement("span");
+      meta.className = "tree-meta";
+      if (node.isIdentifiedTarget) {
+        meta.appendChild(state);
+      }
+
+      if (node.isIdentifiedTarget) {
+        const gauCount = Number.isFinite(Number(node.gauUrlCount)) ? Number(node.gauUrlCount) : 0;
+        if (gauCount > 0) {
+          let gauTag = document.createElement("span");
+          if (node.gauEvidenceId) {
+            gauTag = document.createElement("a");
+            gauTag.href = `/jobs/${encodeURIComponent(entityJobId)}/evidence/${encodeURIComponent(node.gauEvidenceId)}`;
+            gauTag.className = "tree-tag tree-tag-gau tree-tag-link";
+            gauTag.title = `Open gau evidence for ${node.full}`;
+          } else {
+            gauTag.className = "tree-tag tree-tag-gau";
+            gauTag.title = `No linked gau evidence for ${node.full}`;
+          }
+          gauTag.textContent = `${gauCount} URL${gauCount === 1 ? "" : "s"}`;
+          meta.appendChild(gauTag);
+        }
+
+        const naabuCount = Number.isFinite(Number(node.naabuPortCount)) ? Number(node.naabuPortCount) : 0;
+        if (naabuCount > 0) {
+          const naabuButton = document.createElement("button");
+          naabuButton.type = "button";
+          naabuButton.className = "tree-tag tree-tag-gau tree-tag-button";
+          naabuButton.title = `Show open ports identified by naabu for ${node.full}`;
+          naabuButton.textContent = `${naabuCount} Port${naabuCount === 1 ? "" : "s"}`;
+          naabuButton.addEventListener("click", () => {
+            openPortsModal(
+              node.full,
+              node.naabuOpenPorts,
+              node.naabuEvidenceId,
+              node.httpxEvidenceByPort,
+              node.nervaEvidenceByPort,
+              node.scanTargetsByPort
+            );
+          });
+          meta.appendChild(naabuButton);
+        }
+
+      }
+      row.appendChild(meta);
+
+      li.appendChild(row);
+
+      if (node.children.size > 0) {
+        const ul = document.createElement("ul");
+        const children = [...node.children.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+        for (const [childLabel, childNode] of children) {
+          renderNode(ul, childLabel, childNode);
+        }
+        li.appendChild(ul);
+      }
+
+      container.appendChild(li);
+    }
+
+    const entityTreeMount = document.getElementById("entity-tree");
+    const entityFilterButtons = [...document.querySelectorAll(".entity-filter-btn")];
+    const entityFilterCounts = [...document.querySelectorAll(".entity-filter-count")];
+
+    // Render one filtered tree into the single mount element.
+    function renderTreeInto(records, emptyMessage) {
+      const mount = entityTreeMount;
+      mount.replaceChildren();
+      const tree = buildTree(records);
+      const roots = [...tree.children.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+
+      if (roots.length === 0) {
+        mount.textContent = emptyMessage;
+        return;
+      }
+
+      const ul = document.createElement("ul");
+      ul.className = "tree-root";
+      for (const [label, node] of roots) {
+        renderNode(ul, label, node);
+      }
+      mount.appendChild(ul);
+    }
+
+    function getFilteredRecords(filterName) {
+      if (filterName === "resolved") {
+        return entityRecords.filter((record) => String(record.resolution_status || "UNRESOLVED").toUpperCase() === "RESOLVED");
+      }
+      if (filterName === "unresolved") {
+        return entityRecords.filter((record) => String(record.resolution_status || "UNRESOLVED").toUpperCase() !== "RESOLVED");
+      }
+      return entityRecords;
+    }
+
+    function getEmptyMessage(filterName) {
+      if (filterName === "resolved") {
+        return "No resolved domain/subdomain data available for this scope.";
+      }
+      if (filterName === "unresolved") {
+        return "No unresolved domain/subdomain data available for this scope.";
+      }
+      return "No domain/subdomain data available for this scope.";
+    }
+
+    function updateEntityFilterCounts() {
+      const resolvedCount = entityRecords.filter((record) => String(record.resolution_status || "UNRESOLVED").toUpperCase() === "RESOLVED").length;
+      const unresolvedCount = entityRecords.length - resolvedCount;
+      for (const counter of entityFilterCounts) {
+        const target = String(counter.dataset.countFor || "");
+        if (target === "resolved") {
+          counter.textContent = String(resolvedCount);
+        } else if (target === "unresolved") {
+          counter.textContent = String(unresolvedCount);
+        }
+      }
+    }
+
+    function applyEntityFilter(filterName) {
+      for (const button of entityFilterButtons) {
+        button.classList.toggle("is-active", button.dataset.filter === filterName);
+      }
+      renderTreeInto(getFilteredRecords(filterName), getEmptyMessage(filterName));
+    }
+
+    function bindEntityFilters() {
+      for (const button of entityFilterButtons) {
+        button.addEventListener("click", () => {
+          applyEntityFilter(String(button.dataset.filter || "all"));
+        });
+      }
+    }
+
+    const portsModal = document.getElementById("ports-modal");
+    const portsModalClose = document.getElementById("ports-modal-close");
+    const portsModalTarget = document.getElementById("ports-modal-target");
+    const portsModalSummary = document.getElementById("ports-modal-summary");
+    const portsModalList = document.getElementById("ports-modal-list");
+    const portsModalEvidenceWrap = document.getElementById("ports-modal-evidence-wrap");
+    const dastModal = document.getElementById("dast-modal");
+    const dastModalClose = document.getElementById("dast-modal-close");
+    const dastModalTarget = document.getElementById("dast-modal-target");
+    const dastModalSummary = document.getElementById("dast-modal-summary");
+    const dastModalList = document.getElementById("dast-modal-list");
+
+    function syncBodyModalState() {
+      const anyModalVisible = !portsModal.hasAttribute("hidden") || !dastModal.hasAttribute("hidden");
+      document.body.classList.toggle("modal-open", anyModalVisible);
+    }
+
+    function showModal(modal) {
+      portsModal.setAttribute("hidden", "hidden");
+      dastModal.setAttribute("hidden", "hidden");
+      modal.removeAttribute("hidden");
+      syncBodyModalState();
+    }
+
+    function closePortsModal() {
+      portsModal.setAttribute("hidden", "hidden");
+      syncBodyModalState();
+    }
+
+    function closeDastModal() {
+      dastModal.setAttribute("hidden", "hidden");
+      syncBodyModalState();
+    }
+
+    function isTerminalAcunetixWorkflow(state) {
+      const status = String((state && state.status) || "").toUpperCase();
+      return status === "COMPLETED" || status === "FAILED";
+    }
+
+    function scheduleAcunetixWorkflowPoll(target, workflowId, delayMs = 0) {
+      const targetKey = target.key;
+      const existing = acunetixWorkflowPollers.get(targetKey);
+      if (existing) {
+        window.clearTimeout(existing);
+      }
+      const timer = window.setTimeout(async () => {
+        try {
+          const response = await fetch(`${acunetixWorkflowEndpoint}/${encodeURIComponent(workflowId)}`, {
+            method: "GET",
+            headers: {
+              "Accept": "application/json"
+            },
+            credentials: "same-origin"
+          });
+          const payload = await response.json();
+          if (!response.ok) {
+            const detail = payload && typeof payload.detail === "string" ? payload.detail : "Failed to poll Acunetix workflow.";
+            throw new Error(detail);
+          }
+          acunetixWorkflowStateByTarget.set(targetKey, payload);
+          if (currentDastTarget && currentDastTarget.key === targetKey && currentDastPayload) {
+            renderDastModal(target, currentDastPayload);
+          }
+          if (!isTerminalAcunetixWorkflow(payload) && payload.workflow_id) {
+            scheduleAcunetixWorkflowPoll(target, payload.workflow_id, 4000);
+          } else {
+            acunetixWorkflowPollers.delete(targetKey);
+          }
+        } catch (error) {
+          const previous = acunetixWorkflowStateByTarget.get(targetKey);
+          if (previous && !isTerminalAcunetixWorkflow(previous)) {
+            const nextState = {
+              ...previous,
+              message: error instanceof Error ? error.message : "Failed to poll Acunetix workflow."
+            };
+            acunetixWorkflowStateByTarget.set(targetKey, nextState);
+            if (currentDastTarget && currentDastTarget.key === targetKey && currentDastPayload) {
+              renderDastModal(target, currentDastPayload);
+            }
+            if (previous.workflow_id) {
+              scheduleAcunetixWorkflowPoll(target, previous.workflow_id, 6000);
+            }
+          } else {
+            acunetixWorkflowPollers.delete(targetKey);
+          }
+        }
+      }, delayMs);
+      acunetixWorkflowPollers.set(targetKey, timer);
+    }
+
+    async function launchAcunetixWorkflow(target) {
+      const targetKey = target.key;
+      const previousState = acunetixWorkflowStateByTarget.get(targetKey);
+      if (previousState && !isTerminalAcunetixWorkflow(previousState) && previousState.workflow_id) {
+        scheduleAcunetixWorkflowPoll(target, previousState.workflow_id, 0);
+        return;
+      }
+
+      acunetixWorkflowStateByTarget.set(targetKey, {
+        workflow_id: "",
+        status: "RUNNING",
+        phase: "INITIALIZING",
+        message: "Starting Acunetix workflow...",
+        scan_status: "",
+        scan_progress: null,
+        vulnerability_count: 0,
+        vulnerabilities_preview: [],
+        steps: []
+      });
+      if (currentDastTarget && currentDastTarget.key === targetKey && currentDastPayload) {
+        renderDastModal(target, currentDastPayload);
+      }
+
+      try {
+        const response = await fetch(acunetixWorkflowEndpoint, {
+          method: "POST",
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "X-CSRF-Token": csrfToken
+          },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            target_name: target.name,
+            target_url: target.url,
+            target_label: target.label
+          })
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          const detail = payload && typeof payload.detail === "string" ? payload.detail : "Failed to start Acunetix workflow.";
+          throw new Error(detail);
+        }
+        acunetixWorkflowStateByTarget.set(targetKey, payload);
+        if (currentDastTarget && currentDastTarget.key === targetKey && currentDastPayload) {
+          renderDastModal(target, currentDastPayload);
+        }
+        if (payload.workflow_id && !isTerminalAcunetixWorkflow(payload)) {
+          scheduleAcunetixWorkflowPoll(target, payload.workflow_id, 1000);
+        }
+      } catch (error) {
+        acunetixWorkflowStateByTarget.set(targetKey, {
+          workflow_id: "",
+          status: "FAILED",
+          phase: "FAILED",
+          message: error instanceof Error ? error.message : "Failed to start Acunetix workflow.",
+          scan_status: "",
+          scan_progress: null,
+          vulnerability_count: 0,
+          vulnerabilities_preview: [],
+          steps: []
+        });
+        if (currentDastTarget && currentDastTarget.key === targetKey && currentDastPayload) {
+          renderDastModal(target, currentDastPayload);
+        }
+      }
+    }
+
+    function renderAcunetixWorkflowState(target, parent) {
+      const workflow = acunetixWorkflowStateByTarget.get(target.key);
+      const actions = document.createElement("div");
+      actions.className = "dast-tool-actions";
+
+      const launchButton = document.createElement("button");
+      launchButton.type = "button";
+      launchButton.className = "btn-secondary btn-pill";
+      const running = workflow && !isTerminalAcunetixWorkflow(workflow);
+      launchButton.disabled = Boolean(running);
+      launchButton.innerHTML = running
+        ? '<i class="fa-solid fa-spinner" aria-hidden="true"></i><span>Workflow running</span>'
+        : '<i class="fa-solid fa-rocket" aria-hidden="true"></i><span>Launch scan</span>';
+      launchButton.addEventListener("click", () => {
+        launchAcunetixWorkflow(target);
+      });
+      actions.appendChild(launchButton);
+
+      if (workflow && workflow.report_download_url) {
+        const reportLink = document.createElement("a");
+        reportLink.className = "btn-secondary btn-pill";
+        reportLink.href = workflow.report_download_url;
+        reportLink.innerHTML = '<i class="fa-solid fa-file-arrow-down" aria-hidden="true"></i><span>Download report</span>';
+        actions.appendChild(reportLink);
+      }
+
+      parent.appendChild(actions);
+
+      if (!workflow) {
+        return;
+      }
+
+      const summary = document.createElement("div");
+      summary.className = "dast-workflow-summary";
+
+      const chipTexts = [];
+      chipTexts.push(`status: ${String(workflow.status || "UNKNOWN").toUpperCase()}`);
+      if (workflow.phase) {
+        chipTexts.push(`phase: ${workflow.phase}`);
+      }
+      if (workflow.scan_status) {
+        chipTexts.push(`scan: ${workflow.scan_status}${workflow.scan_progress != null ? ` (${workflow.scan_progress}%)` : ""}`);
+      }
+      if (Number.isFinite(Number(workflow.vulnerability_count)) && Number(workflow.vulnerability_count) > 0) {
+        chipTexts.push(`vulns: ${workflow.vulnerability_count}`);
+      }
+
+      for (const chipText of chipTexts) {
+        const chip = document.createElement("span");
+        chip.className = "ports-summary-chip";
+        chip.textContent = chipText;
+        summary.appendChild(chip);
+      }
+      parent.appendChild(summary);
+
+      if (workflow.message) {
+        const message = document.createElement("p");
+        message.className = "dast-workflow-message";
+        message.textContent = String(workflow.message);
+        parent.appendChild(message);
+      }
+
+      if (Array.isArray(workflow.vulnerabilities_preview) && workflow.vulnerabilities_preview.length > 0) {
+        const vulnList = document.createElement("ul");
+        vulnList.className = "dast-vulnerability-list";
+        for (const vuln of workflow.vulnerabilities_preview) {
+          if (!vuln || typeof vuln !== "object") {
+            continue;
+          }
+          const item = document.createElement("li");
+          const severity = vuln.severity != null ? `severity ${vuln.severity}` : "severity n/a";
+          item.textContent = `${String(vuln.name || "Unnamed vulnerability")} (${severity})`;
+          vulnList.appendChild(item);
+        }
+        parent.appendChild(vulnList);
+      }
+
+      if (Array.isArray(workflow.steps) && workflow.steps.length > 0) {
+        const stepList = document.createElement("ul");
+        stepList.className = "dast-step-list";
+        for (const step of workflow.steps.slice(-5)) {
+          if (!step || typeof step !== "object") {
+            continue;
+          }
+          const item = document.createElement("li");
+          item.textContent = `${String(step.phase || "STEP")}: ${String(step.message || "")}`;
+          stepList.appendChild(item);
+        }
+        parent.appendChild(stepList);
+      }
+    }
+
+    function buildProofTag(label, iconClass, href, title, toneClass) {
+      const link = document.createElement("a");
+      link.className = `port-action-tag ${toneClass}`;
+      link.href = href;
+      link.title = title;
+
+      const icon = document.createElement("i");
+      icon.className = iconClass;
+      icon.setAttribute("aria-hidden", "true");
+      link.appendChild(icon);
+
+      const text = document.createElement("span");
+      text.textContent = label;
+      link.appendChild(text);
+      return link;
+    }
+
+    function buildActionButton(label, iconClass, title, toneClass, onClick) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `port-action-tag ${toneClass}`;
+      button.title = title;
+      button.addEventListener("click", onClick);
+
+      const icon = document.createElement("i");
+      icon.className = iconClass;
+      icon.setAttribute("aria-hidden", "true");
+      button.appendChild(icon);
+
+      const text = document.createElement("span");
+      text.textContent = label;
+      button.appendChild(text);
+      return button;
+    }
+
+    function openPortsModal(targetName, ports, evidenceId, httpxEvidenceByPort, nervaEvidenceByPort, scanTargetsByPort) {
+      portsModalTarget.textContent = `Target: ${targetName}`;
+      portsModalSummary.replaceChildren();
+      portsModalList.replaceChildren();
+      portsModalEvidenceWrap.replaceChildren();
+
+      const normalizedPorts = Array.isArray(ports)
+        ? ports
+            .map((value) => Number(value))
+            .filter((value) => Number.isInteger(value) && value >= 1 && value <= 65535)
+            .sort((a, b) => a - b)
+        : [];
+      const totalChip = document.createElement("span");
+      totalChip.className = "ports-summary-chip";
+      totalChip.innerHTML = `<i class="fa-solid fa-ethernet" aria-hidden="true"></i><span>${normalizedPorts.length} open port${normalizedPorts.length === 1 ? "" : "s"}</span>`;
+      portsModalSummary.appendChild(totalChip);
+
+      if (normalizedPorts.length === 0) {
+        const emptyText = document.createElement("p");
+        emptyText.className = "muted-text";
+        emptyText.textContent = "No open ports identified for this target.";
+        portsModalList.appendChild(emptyText);
+      } else {
+        const portGrid = document.createElement("ul");
+        portGrid.className = "ports-grid";
+        for (const port of normalizedPorts) {
+          const httpxEvidenceId = httpxEvidenceByPort ? String(httpxEvidenceByPort[String(port)] || "").trim() : "";
+          const nervaEvidenceId = nervaEvidenceByPort ? String(nervaEvidenceByPort[String(port)] || "").trim() : "";
+          const dastTarget = getPortDastTarget(targetName, port, scanTargetsByPort);
+          const item = document.createElement("li");
+          item.className = "port-pill";
+
+          const portValue = document.createElement("span");
+          portValue.className = "port-pill-value";
+          portValue.innerHTML = `<i class="fa-solid fa-plug-circle-check" aria-hidden="true"></i><strong>${String(port)}</strong>`;
+          item.appendChild(portValue);
+
+          const actions = document.createElement("div");
+          actions.className = "port-pill-actions";
+
+          actions.appendChild(
+            buildActionButton(
+              "dast",
+              "fa-solid fa-shield-halved",
+              `Open available DAST tools for ${dastTarget.url}`,
+              "port-action-dast",
+              () => openDastModal(dastTarget)
+            )
+          );
+
+          if (httpxEvidenceId) {
+            actions.appendChild(
+              buildProofTag(
+                "httpx",
+                "fa-solid fa-globe",
+                `/jobs/${encodeURIComponent(entityJobId)}/evidence/${encodeURIComponent(httpxEvidenceId)}`,
+                `Open httpx evidence for ${targetName}:${port}`,
+                "port-action-httpx"
+              )
+            );
+          }
+
+          if (nervaEvidenceId) {
+            actions.appendChild(
+              buildProofTag(
+                "nerva",
+                "fa-solid fa-fingerprint",
+                `/jobs/${encodeURIComponent(entityJobId)}/evidence/${encodeURIComponent(nervaEvidenceId)}`,
+                `Open nerva evidence for ${targetName}:${port}`,
+                "port-action-nerva"
+              )
+            );
+          }
+
+          if (actions.childElementCount > 0) {
+            item.appendChild(actions);
+          } else {
+            const emptyBadge = document.createElement("span");
+            emptyBadge.className = "port-action-empty";
+            emptyBadge.textContent = "No linked proof";
+            item.appendChild(emptyBadge);
+          }
+          portGrid.appendChild(item);
+        }
+        portsModalList.appendChild(portGrid);
+      }
+
+      if (evidenceId) {
+        const evidenceLink = document.createElement("a");
+        evidenceLink.className = "btn-secondary btn-pill";
+        evidenceLink.href = `/jobs/${encodeURIComponent(entityJobId)}/evidence/${encodeURIComponent(evidenceId)}`;
+        evidenceLink.innerHTML = '<i class="fa-solid fa-diagram-project" aria-hidden="true"></i><span>Open naabu evidence</span>';
+        portsModalEvidenceWrap.appendChild(evidenceLink);
+      }
+
+      showModal(portsModal);
+    }
+
+    function renderDastModal(target, payload) {
+      currentDastTarget = target;
+      currentDastPayload = payload;
+      dastModalTarget.textContent = `Target: ${target.label}`;
+      dastModalSummary.replaceChildren();
+      dastModalList.replaceChildren();
+
+      const warnings = payload && Array.isArray(payload.warnings) ? payload.warnings : [];
+      const normalizedTools = payload && Array.isArray(payload.tools)
+        ? payload.tools
+            .filter((tool) => tool && typeof tool === "object")
+            .map((tool) => ({
+              id: String(tool.id || "").trim(),
+              label: String(tool.label || tool.binary || "Unknown").trim(),
+              kind: String(tool.kind || "").trim(),
+              binary: String(tool.binary || "").trim(),
+              source: String(tool.source || "").trim(),
+              summary: String(tool.summary || "").trim(),
+              endpoint: String(tool.endpoint || "").trim(),
+              protocolVersion: String(tool.protocol_version || "").trim(),
+              toolNamesPreview: Array.isArray(tool.tool_names_preview)
+                ? tool.tool_names_preview.map((value) => String(value || "").trim()).filter(Boolean)
+                : []
+            }))
+            .filter((tool) => tool.label)
+        : [];
+
+      const totalChip = document.createElement("span");
+      totalChip.className = "ports-summary-chip";
+      totalChip.innerHTML = `<i class="fa-solid fa-list-check" aria-hidden="true"></i><span>${normalizedTools.length} available tool${normalizedTools.length === 1 ? "" : "s"}</span>`;
+      dastModalSummary.appendChild(totalChip);
+
+      if (warnings.length > 0) {
+        const warningChip = document.createElement("span");
+        warningChip.className = "ports-summary-chip";
+        warningChip.innerHTML = `<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span>${warnings.length} warning${warnings.length === 1 ? "" : "s"}</span>`;
+        dastModalSummary.appendChild(warningChip);
+      }
+
+      if (normalizedTools.length === 0) {
+        const emptyState = document.createElement("p");
+        emptyState.className = "muted-text dast-empty-state";
+        emptyState.textContent = warnings.length > 0 ? warnings.join(" ") : "No DAST tooling detected on this instance.";
+        dastModalList.appendChild(emptyState);
+      } else {
+        const toolList = document.createElement("ul");
+        toolList.className = "dast-tool-grid";
+        for (const tool of normalizedTools) {
+          const item = document.createElement("li");
+          item.className = "dast-tool-card";
+
+          const heading = document.createElement("div");
+          heading.className = "dast-tool-heading";
+          const icon = document.createElement("i");
+          icon.className = "fa-solid fa-shield-virus";
+          icon.setAttribute("aria-hidden", "true");
+          heading.appendChild(icon);
+
+          const label = document.createElement("strong");
+          label.textContent = tool.label;
+          heading.appendChild(label);
+          item.appendChild(heading);
+
+          const meta = document.createElement("div");
+          meta.className = "dast-tool-meta";
+          const metaParts = [];
+          if (tool.summary) {
+            metaParts.push(tool.summary);
+          }
+          if (tool.binary) {
+            metaParts.push(`binary: ${tool.binary}`);
+          }
+          if (tool.source) {
+            metaParts.push(`source: ${tool.source}`);
+          }
+          if (tool.protocolVersion) {
+            metaParts.push(`protocol: ${tool.protocolVersion}`);
+          }
+          if (tool.endpoint) {
+            metaParts.push(`endpoint: ${tool.endpoint}`);
+          }
+          meta.textContent = metaParts.join(" | ");
+          item.appendChild(meta);
+
+          if (tool.toolNamesPreview.length > 0) {
+            const previewList = document.createElement("div");
+            previewList.className = "dast-tool-preview-list";
+            for (const toolName of tool.toolNamesPreview) {
+              const previewTag = document.createElement("span");
+              previewTag.className = "dast-tool-preview-tag";
+              previewTag.textContent = toolName;
+              previewList.appendChild(previewTag);
+            }
+            item.appendChild(previewList);
+          }
+
+          if (tool.id === "mcp:acunetix") {
+            renderAcunetixWorkflowState(target, item);
+          }
+
+          toolList.appendChild(item);
+        }
+        dastModalList.appendChild(toolList);
+      }
+    }
+
+    async function openDastModal(target) {
+      dastModalTarget.textContent = `Target: ${target.label}`;
+      dastModalSummary.replaceChildren();
+      dastModalList.replaceChildren();
+
+      const loadingState = document.createElement("p");
+      loadingState.className = "muted-text dast-empty-state";
+      loadingState.textContent = "Loading available DAST integrations...";
+      dastModalList.appendChild(loadingState);
+      showModal(dastModal);
+
+      try {
+        const response = await fetch(dastToolsEndpoint, {
+          method: "GET",
+          headers: {
+            "Accept": "application/json"
+          },
+          credentials: "same-origin"
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          const detail = payload && typeof payload.detail === "string" ? payload.detail : "Failed to load DAST integrations.";
+          throw new Error(detail);
+        }
+        renderDastModal(target, payload);
+      } catch (error) {
+        renderDastModal(target, {
+          tools: [],
+          warnings: [error instanceof Error ? error.message : "Failed to load DAST integrations."]
+        });
+      }
+    }
+
+    portsModalClose.addEventListener("click", closePortsModal);
+    portsModal.addEventListener("click", (event) => {
+      if (event.target === portsModal) {
+        closePortsModal();
+      }
+    });
+    dastModalClose.addEventListener("click", closeDastModal);
+    dastModal.addEventListener("click", (event) => {
+      if (event.target === dastModal) {
+        closeDastModal();
+      }
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+      if (!portsModal.hasAttribute("hidden")) {
+        closePortsModal();
+      }
+      if (!dastModal.hasAttribute("hidden")) {
+        closeDastModal();
+      }
+    });
+
+    updateEntityFilterCounts();
+    bindEntityFilters();
+    applyEntityFilter("all");
+  </script>
+</body>
+</html>

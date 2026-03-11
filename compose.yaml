@@ -1,0 +1,93 @@
+# Single-container deployment for the web UI and in-process orchestrator.
+services:
+  app:
+    # Build the local application image from the repository root.
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ghostreconrev:local
+    container_name: ghostreconrev-app
+    hostname: ghostreconrev-app
+    # Keep the service available after transient failures without broad privileges.
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    # Runtime settings remain externalized through environment variables.
+    environment:
+      DATABASE_URL: sqlite:////app/data/recon_ui.db
+      AMASS_TIMEOUT: ${AMASS_TIMEOUT:-60}
+      ASSETFINDER_TIMEOUT: ${ASSETFINDER_TIMEOUT:-60}
+      CRTSH_TIMEOUT: ${CRTSH_TIMEOUT:-20}
+      DNSX_TIMEOUT: ${DNSX_TIMEOUT:-20}
+      HOST_TIMEOUT: ${HOST_TIMEOUT:-15}
+      COLLECTOR_MAX_WORKERS: ${COLLECTOR_MAX_WORKERS:-4}
+      GAU_TIMEOUT: ${GAU_TIMEOUT:-120}
+      GAU_THREADS: ${GAU_THREADS:-10}
+      GAU_MAX_WORKERS: ${GAU_MAX_WORKERS:-5}
+      NAABU_TIMEOUT: ${NAABU_TIMEOUT:-60}
+      NAABU_MAX_WORKERS: ${NAABU_MAX_WORKERS:-5}
+      ACTIVE_ENRICHMENT_ENABLED: ${ACTIVE_ENRICHMENT_ENABLED:-false}
+      NERVA_TIMEOUT: ${NERVA_TIMEOUT:-60}
+      NERVA_MAX_WORKERS: ${NERVA_MAX_WORKERS:-5}
+      HTTPX_TIMEOUT: ${HTTPX_TIMEOUT:-45}
+      HTTPX_MAX_WORKERS: ${HTTPX_MAX_WORKERS:-8}
+      HTTPX_MAX_REDIRECTS: ${HTTPX_MAX_REDIRECTS:-2}
+      APP_MAX_REQUEST_BYTES: ${APP_MAX_REQUEST_BYTES:-1048576}
+      APP_REQUIRE_AUTH: ${APP_REQUIRE_AUTH:-false}
+      APP_AUTH_USERNAME: ${APP_AUTH_USERNAME:-}
+      APP_AUTH_PASSWORD: ${APP_AUTH_PASSWORD:-}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-127.0.0.1,localhost,::1,ghostreconrev-app,ghostreconrev}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      REPORT_LLM_MODEL: ${REPORT_LLM_MODEL:-gpt-4.1-nano}
+      ACUNETIX_MCP_URL: ${ACUNETIX_MCP_URL:-http://acunetix-mcp-server:3000/mcp}
+      ACUNETIX_MCP_HEALTH_URL: ${ACUNETIX_MCP_HEALTH_URL:-http://acunetix-mcp-server:3000/healthz}
+      ACUNETIX_MCP_AUTH_TOKEN: ${ACUNETIX_MCP_AUTH_TOKEN:-}
+      ACUNETIX_MCP_TIMEOUT: ${ACUNETIX_MCP_TIMEOUT:-60}
+      ACUNETIX_DEFAULT_PROFILE_ID: ${ACUNETIX_DEFAULT_PROFILE_ID:-11111111-1111-1111-1111-111111111111}
+      ACUNETIX_DEFAULT_REPORT_TEMPLATE_ID: ${ACUNETIX_DEFAULT_REPORT_TEMPLATE_ID:-11111111-1111-1111-1111-111111111111}
+      ACUNETIX_TARGET_SCAN_SPEED: ${ACUNETIX_TARGET_SCAN_SPEED:-moderate}
+      ACUNETIX_TARGET_USER_AGENT: ${ACUNETIX_TARGET_USER_AGENT:-Mozilla/5.0}
+      ACUNETIX_TARGET_CASE_SENSITIVE: ${ACUNETIX_TARGET_CASE_SENSITIVE:-yes}
+      ACUNETIX_TARGET_PROXY_ENABLED: ${ACUNETIX_TARGET_PROXY_ENABLED:-true}
+      ACUNETIX_TARGET_PROXY_PROTOCOL: ${ACUNETIX_TARGET_PROXY_PROTOCOL:-http}
+      ACUNETIX_TARGET_PROXY_ADDRESS: ${ACUNETIX_TARGET_PROXY_ADDRESS:-192.168.167.1}
+      ACUNETIX_TARGET_PROXY_PORT: ${ACUNETIX_TARGET_PROXY_PORT:-1348}
+      ACUNETIX_TARGET_CRITICALITY: ${ACUNETIX_TARGET_CRITICALITY:-0}
+      ACUNETIX_RESULT_HISTORY_LIMIT: ${ACUNETIX_RESULT_HISTORY_LIMIT:-10}
+      ACUNETIX_VULNERABILITIES_PAGE_LIMIT: ${ACUNETIX_VULNERABILITIES_PAGE_LIMIT:-99}
+      ACUNETIX_SCAN_POLL_INTERVAL: ${ACUNETIX_SCAN_POLL_INTERVAL:-10}
+      ACUNETIX_SCAN_MAX_RUNTIME: ${ACUNETIX_SCAN_MAX_RUNTIME:-14400}
+      ACUNETIX_SCAN_TIMEOUT: ${ACUNETIX_SCAN_TIMEOUT:-14400}
+      ACUNETIX_REPORT_POLL_INTERVAL: ${ACUNETIX_REPORT_POLL_INTERVAL:-5}
+      ACUNETIX_REPORT_TIMEOUT: ${ACUNETIX_REPORT_TIMEOUT:-300}
+      TELEGRAM_TIMELINE_ENABLED: ${TELEGRAM_TIMELINE_ENABLED:-false}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      TELEGRAM_TIMEOUT: ${TELEGRAM_TIMEOUT:-10}
+    networks:
+      ghostreconrev-net:
+        aliases:
+          - ghostreconrev-app
+          - ghostreconrev
+      dreamland:
+        aliases:
+          - ghostreconrev-app
+          - ghostreconrev
+    # Expose only the web port, and bind it to localhost by default.
+    ports:
+      - "${APP_BIND_HOST:-127.0.0.1}:${APP_PORT:-8000}:8000"
+    # Use bounded json-file logs to keep local Docker state manageable.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  ghostreconrev-net:
+    name: ghostreconrev-net
+    driver: bridge
+  dreamland:
+    name: dreamland
+    driver: bridge

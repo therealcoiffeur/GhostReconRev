@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <!-- Page metadata and shared asset imports. -->
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Evidences - {{ job.job_id }}</title>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png" />
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png" />
+  <link rel="stylesheet" href="/static/styles.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+</head>
+<body>
+  <!-- Global navigation shell shared across pages. -->
+  <header class="app-header">
+    <div class="app-header-inner">
+      <div class="app-header-left">
+        <div class="brand-wrap">
+          <span class="brand-mark"></span>
+          <div>
+            <p class="brand-title">GhostReconRev</p>
+            <p class="brand-sub">Recon Operations Console</p>
+          </div>
+        </div>
+        <a class="home-link" href="/"><i class="fa-solid fa-house" aria-hidden="true"></i> Runs</a>
+        <a class="home-link" href="/history"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> History</a>
+      </div>
+      <nav class="app-nav">
+        <a href="/jobs/{{ job.job_id }}"><i class="fa-solid fa-briefcase" aria-hidden="true"></i> Job</a>
+        <a href="/jobs/{{ job.job_id }}/entities"><i class="fa-solid fa-sitemap" aria-hidden="true"></i> Targets</a>
+        <a href="/jobs/{{ job.job_id }}/report"><i class="fa-solid fa-file-signature" aria-hidden="true"></i> Report</a>
+        <a href="/jobs/{{ job.job_id }}/dast"><i class="fa-solid fa-bug" aria-hidden="true"></i> DAST</a>
+        <button id="theme-toggle" class="theme-toggle" type="button" onclick="toggleTheme()"><i class="fa-solid fa-moon" aria-hidden="true"></i></button>
+      </nav>
+    </div>
+  </header>
+  <main class="container">
+    <!-- Evidence list header with current job context. -->
+    <header class="header-row">
+      <h1><i class="fa-solid fa-folder-open" aria-hidden="true"></i> Evidences - {{ job.job_id }}</h1>
+    </header>
+
+    <section class="panel">
+      <!-- Filter form keeps context constrained to one job and resets page to 1. -->
+      <h2><i class="fa-solid fa-filter" aria-hidden="true"></i> Filters</h2>
+      <div class="filter-panel">
+        <p class="filter-title">Refine evidence view</p>
+        <form method="get" action="/jobs/{{ job.job_id }}/evidence" class="filter-grid">
+          <input type="hidden" name="page" value="1" />
+          <div class="filter-field">
+            <label for="filter-source">Source</label>
+            <select id="filter-source" name="source">
+              <option value="">Any</option>
+              {% for s in sources %}
+              <option value="{{ s }}" {% if filters.source == s %}selected{% endif %}>{{ s }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="filter-field">
+            <label for="filter-kind">Kind</label>
+            <select id="filter-kind" name="kind">
+              <option value="">Any</option>
+              {% for k in kinds %}
+              <option value="{{ k }}" {% if filters.kind == k %}selected{% endif %}>{{ k }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="filter-field">
+            <label for="filter-task">Task</label>
+            <select id="filter-task" name="task_id">
+              <option value="">Any</option>
+              {% for t in tasks %}
+              <option value="{{ t.task_id }}" {% if filters.task_id == t.task_id %}selected{% endif %}>{{ t.task_type }} ({{ t.task_id }})</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="filter-field filter-field-actions">
+            <label aria-hidden="true">Actions</label>
+            <div class="filter-actions">
+              <button type="submit"><i class="fa-solid fa-sliders" aria-hidden="true"></i> Apply</button>
+              <a
+                class="btn-secondary filter-reset-btn"
+                href="/jobs/{{ job.job_id }}/evidence?page=1"
+                aria-label="Reset filters"
+                title="Reset filters"
+              >
+                <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>
+              </a>
+            </div>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="panel">
+      <!-- Paginated evidence table for operator triage and drill-down. -->
+      <h2><i class="fa-solid fa-file-lines" aria-hidden="true"></i> Evidences</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Evidence ID</th>
+            <th>Kind</th>
+            <th>Source</th>
+            <th>Task</th>
+            <th>Collected</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in evidences %}
+          <tr>
+            <td><a href="/jobs/{{ job.job_id }}/evidence/{{ e.evidence_id }}">{{ e.evidence_id }}</a></td>
+            <td>{{ e.kind }}</td>
+            <td>{{ e.source }}</td>
+            <td>{{ e.task_id }}</td>
+            <td>{{ e.collected_at }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div class="pager">
+        <span class="muted-text">
+          Page {{ pagination.page }} / {{ pagination.total_pages }} - {{ pagination.total_items }} item(s)
+        </span>
+        <div class="pager-actions">
+          {% if pagination.has_prev %}
+          <a
+            class="btn-secondary"
+            href="/jobs/{{ job.job_id }}/evidence?page={{ pagination.page - 1 }}&source={{ filters.source }}&kind={{ filters.kind }}&task_id={{ filters.task_id }}"
+            aria-label="Previous page"
+            title="Previous page"
+          >
+            <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
+          </a>
+          {% endif %}
+          {% if pagination.has_next %}
+          <a
+            class="btn-secondary"
+            href="/jobs/{{ job.job_id }}/evidence?page={{ pagination.page + 1 }}&source={{ filters.source }}&kind={{ filters.kind }}&task_id={{ filters.task_id }}"
+            aria-label="Next page"
+            title="Next page"
+          >
+            <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+          </a>
+          {% endif %}
+        </div>
+      </div>
+    </section>
+  </main>
+  <footer class="app-footer">
+    <span>Evidence explorer for job {{ job.job_id }} with source/task filters.</span>
+  </footer>
+  <script>
+    (function () {
+      // Persist light/dark preference in localStorage per browser.
+      const key = "grr-theme";
+      const root = document.documentElement;
+      const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      const saved = localStorage.getItem(key) || (prefersDark ? "dark" : "light");
+
+      function applyTheme(theme) {
+        root.setAttribute("data-theme", theme);
+        const btn = document.getElementById("theme-toggle");
+        if (btn) {
+          btn.innerHTML = theme === "dark" ? '<i class="fa-solid fa-sun" aria-hidden="true"></i>' : '<i class="fa-solid fa-moon" aria-hidden="true"></i>';
+          btn.title = theme === "dark" ? "Switch to light mode" : "Switch to dark mode";
+          btn.setAttribute("aria-label", btn.title);
+        }
+      }
+
+      window.toggleTheme = function () {
+        const current = root.getAttribute("data-theme") === "dark" ? "dark" : "light";
+        const next = current === "dark" ? "light" : "dark";
+        localStorage.setItem(key, next);
+        applyTheme(next);
+      };
+
+      applyTheme(saved);
+    })();
+  </script>
+</body>
+</html>

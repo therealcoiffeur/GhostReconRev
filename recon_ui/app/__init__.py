@@ -1,0 +1,1 @@
+"""GhostReconRev application package."""

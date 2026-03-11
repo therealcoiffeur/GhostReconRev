@@ -1,0 +1,142 @@
+# ------------------------------
+# OS / Editor noise
+# ------------------------------
+.DS_Store
+**/.DS_Store
+._*
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ------------------------------
+# Python cache / virtual env
+# ------------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.dylib
+*.dll
+*.whl
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+site/
+dist/
+build/
+*.egg-info/
+pip-wheel-metadata/
+.venv/
+venv/
+env/
+.python-version
+
+# ------------------------------
+# Local runtime data (contains engagement artifacts)
+# ------------------------------
+recon_ui.db
+*.db
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite3-shm
+*.sqlite3-wal
+*.log
+*.out
+*.err
+*.pid
+*.pid.lock
+*.tmp
+*.temp
+tmp/
+temp/
+run/
+cache/
+data/
+
+# Collector outputs and evidence artifacts
+artifacts/
+!artifacts/.gitkeep
+
+# ------------------------------
+# Local tool binaries (do not publish compiled tools)
+# ------------------------------
+tools/bin/*
+!tools/bin/.gitkeep
+
+# ------------------------------
+# Secrets / credentials
+# ------------------------------
+.env*
+.env
+.env.*
+!.env.example
+.envrc
+.direnv/
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.csr
+*.cer
+*.der
+*.jks
+*.keystore
+*.kdbx
+*.asc
+*.gpg
+*.age
+*.secret
+*.secrets
+*.token
+*.tokens
+*.creds
+*.credentials
+*.password
+*.passwords
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+*.kubeconfig
+*.ovpn
+
+# Cloud credential files
+*credentials*.json
+*service-account*.json
+*secrets*.json
+*secret*.json
+*token*.json
+aws_credentials*
+gcp_credentials*
+azure_credentials*
+credentials/
+secrets/
+private/
+
+# ------------------------------
+# Archives / backups that may contain sensitive data
+# ------------------------------
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.bak
+*.old
+*.orig
+*.rej
